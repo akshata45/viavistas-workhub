@@ -4,6 +4,9 @@ import Login from "../pages/auth/Login";
 import DirectorDashboard from "../pages/director/DirectorDashboard";
 import AllEmployees from "../pages/director/AllEmployees";
 import Teams from "../pages/director/Teams";
+import AllTasks from "../pages/director/AllTasks";
+import EmployeeDashboard from "../pages/employee/EmployeeDashboard";
+import TLDashboard from "../pages/tl/TLDashboard";
 import ComingSoon from "../pages/common/ComingSoon";
 
 import ProtectedRoute from "./ProtectedRoute";
@@ -43,19 +46,36 @@ function AppRoutes() {
         }
       />
 
-      {/* Pages we have not built yet (placeholders instead of a blank screen) */}
       <Route
         path="/director/tasks"
         element={
           <ProtectedRoute allowedRoles={["DIRECTOR"]}>
-            <ComingSoon
-              title="Work & Tasks"
-              message="Task management is being built next."
-            />
+            <AllTasks />
           </ProtectedRoute>
         }
       />
 
+      {/* Employee and Team Leader: their own assigned work */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute allowedRoles={["EMPLOYEE", "TL"]}>
+            <EmployeeDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Team Leader: team management */}
+      <Route
+        path="/tl"
+        element={
+          <ProtectedRoute allowedRoles={["TL"]}>
+            <TLDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Not built yet: placeholder instead of a blank screen */}
       <Route
         path="/director/performance"
         element={

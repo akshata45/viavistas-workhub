@@ -46,6 +46,8 @@ function Login() {
 
       if (data.user.role === "DIRECTOR") {
         navigate("/director");
+      } else if (data.user.role === "TL") {
+        navigate("/tl");
       } else {
         navigate("/dashboard");
       }

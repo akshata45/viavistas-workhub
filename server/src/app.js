@@ -4,6 +4,7 @@ import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import teamRoutes from "./routes/teamRoutes.js";
 import taskRoutes from "./routes/taskRoutes.js";
+import tlRoutes from "./routes/tlRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 
 const app = express();
@@ -23,6 +24,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/teams", teamRoutes);
 app.use("/api/tasks", taskRoutes);
+app.use("/api/tl", tlRoutes);
 app.use("/api/director", dashboardRoutes);
 
 // Health check
