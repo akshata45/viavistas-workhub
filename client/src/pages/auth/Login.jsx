@@ -164,27 +164,27 @@ function Login() {
                   </button>
                 </div>
 
-<div className="relative">
-  <LockKeyhole
-    size={18}
-    className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400"
-  />
+                <div className="relative">
+                  <LockKeyhole
+                    size={18}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400"
+                  />
 
-  <input
-    id="password"
-    type="password"
-    placeholder="Enter your password"
-    value={password}
-    onChange={(e) => setPassword(e.target.value)}
-    className="h-13 w-full rounded-xl border border-neutral-200 bg-white pl-11 pr-4 text-sm outline-none transition focus:border-[#111111] focus:ring-2 focus:ring-black/5"
-  />
-</div>
+                  <input
+                    id="password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-13 w-full rounded-xl border border-neutral-200 bg-white pl-11 pr-4 text-sm outline-none transition focus:border-[#111111] focus:ring-2 focus:ring-black/5"
+                  />
+                </div>
 
-{error && (
-  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-    {error}
-  </div>
-)}
+                {error && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                    {error}
+                  </div>
+                )}
               </div>
 
               {/* Submit */}
