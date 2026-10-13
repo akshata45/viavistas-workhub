@@ -396,7 +396,7 @@ function TLDashboard() {
           <StatCard
             label="Completion rate"
             value={showPercent(teamCompletion)}
-            highlight
+            highlights
           />
         </div>
 
