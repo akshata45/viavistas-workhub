@@ -270,6 +270,13 @@ export const updateTask = async (user, id, body) => {
     throw httpError(400, "Approved tasks can no longer be edited.");
   }
 
+  if (task.status === "SUBMITTED") {
+    throw httpError(
+      400,
+      "This task is waiting for review. Approve or reject it before editing."
+    );
+  }
+
   const data = {};
 
   if (body.title !== undefined) {
@@ -293,10 +300,13 @@ export const updateTask = async (user, id, body) => {
 
   if (body.difficulty !== undefined) {
     checkOneOf(body.difficulty, TASK_DIFFICULTIES, "Difficulty");
-    data.difficulty = body.difficulty;
 
-    // Points follow the new difficulty unless the Director sets them
-    data.points = DIFFICULTY_POINTS[body.difficulty];
+    // Only when the difficulty really changes do the points follow it
+    // (unless the Director sets the points directly, below)
+    if (body.difficulty !== task.difficulty) {
+      data.difficulty = body.difficulty;
+      data.points = DIFFICULTY_POINTS[body.difficulty];
+    }
   }
 
   if (isDirector(user) && hasValue(body.points)) {

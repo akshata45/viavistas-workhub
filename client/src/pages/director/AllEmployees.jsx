@@ -8,6 +8,14 @@ import {
 
 import { getTeams } from "../../services/teamService";
 
+const emptyForm = {
+  name: "",
+  email: "",
+  password: "",
+  role: "EMPLOYEE",
+  teamId: "",
+};
+
 function AllEmployees() {
   const [employees, setEmployees] = useState([]);
   const [teams, setTeams] = useState([]);
@@ -16,15 +24,13 @@ function AllEmployees() {
   const [error, setError] = useState("");
 
   const [showModal, setShowModal] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState(null); // null = adding
+  const [modalError, setModalError] = useState("");
+  const [saving, setSaving] = useState(false);
+
   const [showInactive, setShowInactive] = useState(false);
 
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-    role: "EMPLOYEE",
-    teamId: "",
-  });
+  const [form, setForm] = useState(emptyForm);
 
   const loadData = async () => {
     try {
@@ -59,45 +65,95 @@ function AllEmployees() {
     }));
   };
 
-  const handleCreate = async (e) => {
+  // The team (if any) that this person leads
+  const getLedTeam = (employee) =>
+    teams.find((team) => team.teamLeaderId === employee.id) || null;
+
+  const openAdd = () => {
+    setEditingEmployee(null);
+    setForm(emptyForm);
+    setModalError("");
+    setShowModal(true);
+  };
+
+  const openEdit = (employee) => {
+    setEditingEmployee(employee);
+    setForm({
+      name: employee.name,
+      email: employee.email,
+      password: "",
+      role: employee.role,
+      teamId: employee.teamId ? String(employee.teamId) : "",
+    });
+    setModalError("");
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingEmployee(null);
+    setForm(emptyForm);
+    setModalError("");
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     try {
-      await createUser({
-        name: form.name,
-        email: form.email,
-        password: form.password,
-        role: form.role,
-        teamId: form.teamId ? Number(form.teamId) : null,
-      });
+      setSaving(true);
+      setModalError("");
 
-      setForm({
-        name: "",
-        email: "",
-        password: "",
-        role: "EMPLOYEE",
-        teamId: "",
-      });
+      if (editingEmployee) {
+        const changes = {
+          name: form.name,
+          email: form.email,
+        };
 
-      setShowModal(false);
+        // The Director's role and team are fixed
+        if (editingEmployee.role !== "DIRECTOR") {
+          changes.role = form.role;
+          changes.teamId = form.teamId ? Number(form.teamId) : null;
+        }
 
+        // Only send a password if a new one was typed
+        if (form.password) {
+          changes.password = form.password;
+        }
+
+        await updateUser(editingEmployee.id, changes);
+      } else {
+        await createUser({
+          name: form.name,
+          email: form.email,
+          password: form.password,
+          role: form.role,
+          teamId: form.teamId ? Number(form.teamId) : null,
+        });
+      }
+
+      closeModal();
       await loadData();
     } catch (error) {
-      setError(error.message || "Unable to create employee.");
+      setModalError(error.message || "Unable to save employee.");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleDeactivate = async (id) => {
-    const confirmed = window.confirm(
-      "Are you sure you want to deactivate this employee?"
-    );
+  const handleDeactivate = async (employee) => {
+    const ledTeam = getLedTeam(employee);
 
-    if (!confirmed) {
+    const message = ledTeam
+      ? `Deactivate ${employee.name}?\n\nThey lead "${ledTeam.name}". That team will have no leader until you assign a new one on the Teams page.`
+      : `Are you sure you want to deactivate ${employee.name}?`;
+
+    if (!window.confirm(message)) {
       return;
     }
 
     try {
-      await deactivateUser(id);
+      setError("");
+      await deactivateUser(employee.id);
       await loadData();
     } catch (error) {
       setError(error.message || "Unable to deactivate employee.");
@@ -131,6 +187,10 @@ function AllEmployees() {
     (employee) => !employee.isActive
   ).length;
 
+  // Facts used inside the edit popup
+  const editingIsDirector = editingEmployee?.role === "DIRECTOR";
+  const editingLedTeam = editingEmployee ? getLedTeam(editingEmployee) : null;
+
   return (
     <div className="min-h-screen bg-[#f7f7f5] p-6 md:p-10">
       <div className="mx-auto max-w-7xl">
@@ -160,7 +220,7 @@ function AllEmployees() {
             </button>
 
             <button
-              onClick={() => setShowModal(true)}
+              onClick={openAdd}
               className="rounded-xl bg-[#111111] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#242424]"
             >
               Add Employee
@@ -218,73 +278,92 @@ function AllEmployees() {
                 </thead>
 
                 <tbody>
-                  {visibleEmployees.map((employee) => (
-                    <tr
-                      key={employee.id}
-                      className="border-b border-neutral-100 last:border-0"
-                    >
-                      <td className="px-6 py-5">
-                        <div>
-                          <p
-                            className={`font-bold ${
+                  {visibleEmployees.map((employee) => {
+                    const ledTeam = getLedTeam(employee);
+
+                    return (
+                      <tr
+                        key={employee.id}
+                        className="border-b border-neutral-100 last:border-0"
+                      >
+                        <td className="px-6 py-5">
+                          <div>
+                            <p
+                              className={`font-bold ${
+                                employee.isActive
+                                  ? "text-[#111111]"
+                                  : "text-neutral-400"
+                              }`}
+                            >
+                              {employee.name}
+                            </p>
+
+                            <p className="mt-1 text-sm text-neutral-500">
+                              {employee.email}
+                            </p>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-5">
+                          <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-bold text-neutral-700">
+                            {employee.role}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-5 text-sm text-neutral-600">
+                          {employee.team?.name || "Unassigned"}
+
+                          {ledTeam && (
+                            <span className="ml-2 rounded-full bg-lime-100 px-2 py-0.5 text-[10px] font-bold text-lime-800">
+                              LEADER
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="px-6 py-5">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-bold ${
                               employee.isActive
-                                ? "text-[#111111]"
-                                : "text-neutral-400"
+                                ? "bg-lime-100 text-lime-800"
+                                : "bg-red-100 text-red-700"
                             }`}
                           >
-                            {employee.name}
-                          </p>
+                            {employee.isActive ? "Active" : "Inactive"}
+                          </span>
+                        </td>
 
-                          <p className="mt-1 text-sm text-neutral-500">
-                            {employee.email}
-                          </p>
-                        </div>
-                      </td>
-
-                      <td className="px-6 py-5">
-                        <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-bold text-neutral-700">
-                          {employee.role}
-                        </span>
-                      </td>
-
-                      <td className="px-6 py-5 text-sm text-neutral-600">
-                        {employee.team?.name || "Unassigned"}
-                      </td>
-
-                      <td className="px-6 py-5">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-bold ${
-                            employee.isActive
-                              ? "bg-lime-100 text-lime-800"
-                              : "bg-red-100 text-red-700"
-                          }`}
-                        >
-                          {employee.isActive ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-
-                      <td className="px-6 py-5">
-                        {employee.isActive &&
-                          employee.role !== "DIRECTOR" && (
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-4">
                             <button
-                              onClick={() => handleDeactivate(employee.id)}
-                              className="text-sm font-semibold text-red-500 hover:text-red-700"
+                              onClick={() => openEdit(employee)}
+                              className="text-sm font-semibold text-neutral-600 hover:text-black"
                             >
-                              Deactivate
+                              Edit
                             </button>
-                          )}
 
-                        {!employee.isActive && (
-                          <button
-                            onClick={() => handleReactivate(employee)}
-                            className="text-sm font-semibold text-lime-700 hover:text-lime-900"
-                          >
-                            Reactivate
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                            {employee.isActive &&
+                              employee.role !== "DIRECTOR" && (
+                                <button
+                                  onClick={() => handleDeactivate(employee)}
+                                  className="text-sm font-semibold text-red-500 hover:text-red-700"
+                                >
+                                  Deactivate
+                                </button>
+                              )}
+
+                            {!employee.isActive && (
+                              <button
+                                onClick={() => handleReactivate(employee)}
+                                className="text-sm font-semibold text-lime-700 hover:text-lime-900"
+                              >
+                                Reactivate
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -293,28 +372,44 @@ function AllEmployees() {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4">
+          <div className="my-8 w-full max-w-lg rounded-2xl bg-white p-6">
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-extrabold text-[#111111]">
-                  Add Employee
+                  {editingEmployee ? "Edit Employee" : "Add Employee"}
                 </h2>
 
                 <p className="mt-1 text-sm text-neutral-500">
-                  Create a WorkHub account.
+                  {editingEmployee
+                    ? "Update details, role, team or password."
+                    : "Create a WorkHub account."}
                 </p>
               </div>
 
               <button
-                onClick={() => setShowModal(false)}
+                onClick={closeModal}
                 className="text-xl text-neutral-400 hover:text-black"
               >
                 ×
               </button>
             </div>
 
-            <form onSubmit={handleCreate} className="space-y-4">
+            {modalError && (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                {modalError}
+              </div>
+            )}
+
+            {editingLedTeam && (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                {editingEmployee.name} leads "{editingLedTeam.name}". To change
+                their role or team, assign a different leader to that team on
+                the Teams page first.
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
               <input
                 name="name"
                 value={form.name}
@@ -339,45 +434,70 @@ function AllEmployees() {
                 type="password"
                 value={form.password}
                 onChange={handleChange}
-                placeholder="Temporary password"
-                required
+                placeholder={
+                  editingEmployee
+                    ? "New password (leave blank to keep current)"
+                    : "Temporary password"
+                }
+                required={!editingEmployee}
+                minLength={8}
                 className="h-12 w-full rounded-xl border border-neutral-200 px-4 text-sm outline-none focus:border-black"
               />
 
-              <select
-                name="role"
-                value={form.role}
-                onChange={handleChange}
-                className="h-12 w-full rounded-xl border border-neutral-200 px-4 text-sm outline-none focus:border-black"
-              >
-                <option value="EMPLOYEE">Employee</option>
-                <option value="TL">Team Leader</option>
-              </select>
+              {!editingIsDirector && (
+                <>
+                  <select
+                    name="role"
+                    value={form.role}
+                    onChange={handleChange}
+                    disabled={Boolean(editingLedTeam)}
+                    className="h-12 w-full rounded-xl border border-neutral-200 px-4 text-sm outline-none focus:border-black disabled:bg-neutral-100 disabled:text-neutral-400"
+                  >
+                    <option value="EMPLOYEE">Employee</option>
+                    <option value="TL">Team Leader</option>
+                  </select>
 
-              <select
-                name="teamId"
-                value={form.teamId}
-                onChange={handleChange}
-                className="h-12 w-full rounded-xl border border-neutral-200 px-4 text-sm outline-none focus:border-black"
-              >
-                <option value="">
-                  {teams.length === 0
-                    ? "No teams yet – create one first"
-                    : "Select team"}
-                </option>
+                  <select
+                    name="teamId"
+                    value={form.teamId}
+                    onChange={handleChange}
+                    disabled={Boolean(editingLedTeam)}
+                    className="h-12 w-full rounded-xl border border-neutral-200 px-4 text-sm outline-none focus:border-black disabled:bg-neutral-100 disabled:text-neutral-400"
+                  >
+                    <option value="">
+                      {teams.length === 0
+                        ? "No teams yet – create one first"
+                        : editingEmployee
+                        ? "No team"
+                        : "Select team"}
+                    </option>
 
-                {teams.map((team) => (
-                  <option key={team.id} value={team.id}>
-                    {team.name}
-                  </option>
-                ))}
-              </select>
+                    {teams.map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+
+              {editingEmployee && !editingIsDirector && (
+                <p className="text-xs text-neutral-500">
+                  If you move someone to another team, their unfinished tasks
+                  move with them. Approved tasks stay with the old team.
+                </p>
+              )}
 
               <button
                 type="submit"
-                className="h-12 w-full rounded-xl bg-[#111111] text-sm font-bold text-white hover:bg-[#242424]"
+                disabled={saving}
+                className="h-12 w-full rounded-xl bg-[#111111] text-sm font-bold text-white hover:bg-[#242424] disabled:opacity-60"
               >
-                Create Employee
+                {saving
+                  ? "Saving..."
+                  : editingEmployee
+                  ? "Save Changes"
+                  : "Create Employee"}
               </button>
             </form>
           </div>

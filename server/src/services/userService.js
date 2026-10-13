@@ -57,7 +57,7 @@ export const getUserById = async (id) => {
           name: true,
         },
       },
-      ledTeam: true,
+      managedTeam: { select: { id: true, name: true } },
     },
   });
 };
@@ -179,12 +179,32 @@ export const createUser = async ({
   }
 };
 
+// Fields returned after an update (never includes the password)
+const updatedUserSelect = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  profilePhoto: true,
+  isActive: true,
+  teamId: true,
+  createdAt: true,
+  updatedAt: true,
+  team: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
+};
+
 // Update a user
 export const updateUser = async (
   id,
   {
     name,
     email,
+    password,
     role,
     teamId,
     isActive,
@@ -196,6 +216,23 @@ export const updateUser = async (
   if (!Number.isInteger(userId) || userId <= 0) {
     throw new Error("Invalid user ID.");
   }
+
+  // Load the current user, and the team they lead (if any)
+  const existing = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      managedTeam: {
+        select: { id: true, name: true },
+      },
+    },
+  });
+
+  if (!existing) {
+    throw new Error("User not found.");
+  }
+
+  const isDirector = existing.role === "DIRECTOR";
+  const ledTeam = existing.managedTeam;
 
   const data = {};
 
@@ -219,6 +256,17 @@ export const updateUser = async (
     data.email = cleanEmail;
   }
 
+  // Optional password reset by the Director
+  if (password !== undefined && password !== null && password !== "") {
+    const cleanPassword = String(password);
+
+    if (cleanPassword.length < 8) {
+      throw new Error("Password must contain at least 8 characters.");
+    }
+
+    data.password = await bcrypt.hash(cleanPassword, 12);
+  }
+
   if (role !== undefined) {
     const cleanRole = String(role).toUpperCase();
 
@@ -226,68 +274,123 @@ export const updateUser = async (
       throw new Error("Invalid role selected.");
     }
 
-    data.role = cleanRole;
+    if (cleanRole !== existing.role) {
+      if (isDirector) {
+        throw new Error("The Director's role cannot be changed.");
+      }
+
+      if (cleanRole === "DIRECTOR") {
+        throw new Error("Employees cannot be promoted to Director here.");
+      }
+
+      if (ledTeam) {
+        throw new Error(
+          `${existing.name} leads "${ledTeam.name}". Choose a different leader for that team on the Teams page first.`
+        );
+      }
+
+      data.role = cleanRole;
+    }
   }
 
+  let newTeamId = existing.teamId;
+  let teamChanged = false;
+
   if (teamId !== undefined) {
-    if (teamId === null || teamId === "") {
-      data.teamId = null;
-    } else {
-      const parsedTeamId = Number(teamId);
+    let parsedTeamId = null;
+
+    if (teamId !== null && teamId !== "") {
+      parsedTeamId = Number(teamId);
 
       if (!Number.isInteger(parsedTeamId) || parsedTeamId <= 0) {
         throw new Error("Please select a valid team.");
       }
 
       const team = await prisma.team.findUnique({
-        where: {
-          id: parsedTeamId,
-        },
-        select: {
-          id: true,
-        },
+        where: { id: parsedTeamId },
+        select: { id: true },
       });
 
       if (!team) {
         throw new Error("The selected team does not exist.");
       }
+    }
+
+    if (parsedTeamId !== existing.teamId) {
+      if (isDirector) {
+        throw new Error("The Director cannot be placed in a team.");
+      }
+
+      if (ledTeam) {
+        throw new Error(
+          `${existing.name} leads "${ledTeam.name}". Choose a different leader for that team on the Teams page before moving them.`
+        );
+      }
 
       data.teamId = parsedTeamId;
+      newTeamId = parsedTeamId;
+      teamChanged = true;
     }
   }
 
+  let clearLeadership = false;
+
   if (isActive !== undefined) {
-    data.isActive = Boolean(isActive);
+    const active = Boolean(isActive);
+
+    if (!active && isDirector) {
+      throw new Error("The Director account cannot be deactivated.");
+    }
+
+    // A deactivated Team Leader must not stay as their team's leader
+    if (!active && ledTeam) {
+      clearLeadership = true;
+    }
+
+    data.isActive = active;
   }
 
   if (profilePhoto !== undefined) {
     data.profilePhoto = profilePhoto;
   }
 
-  try {
-    return await prisma.user.update({
-      where: {
-        id: userId,
-      },
+  // All changes below succeed together or fail together
+  const operations = [
+    prisma.user.update({
+      where: { id: userId },
       data,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        profilePhoto: true,
-        isActive: true,
-        teamId: true,
-        createdAt: true,
-        updatedAt: true,
-        team: {
-          select: {
-            id: true,
-            name: true,
-          },
+      select: updatedUserSelect,
+    }),
+  ];
+
+  // Unfinished work follows the employee to their new team,
+  // so the new Team Leader can review it. Approved work stays
+  // with the old team as history.
+  if (teamChanged) {
+    operations.push(
+      prisma.task.updateMany({
+        where: {
+          assignedToId: userId,
+          status: { not: "APPROVED" },
         },
-      },
-    });
+        data: { teamId: newTeamId },
+      })
+    );
+  }
+
+  if (clearLeadership) {
+    operations.push(
+      prisma.team.update({
+        where: { id: ledTeam.id },
+        data: { teamLeaderId: null },
+      })
+    );
+  }
+
+  try {
+    const results = await prisma.$transaction(operations);
+
+    return results[0];
   } catch (error) {
     if (error.code === "P2002") {
       throw new Error("A user with this email already exists.");
@@ -303,33 +406,5 @@ export const updateUser = async (
 
 // Deactivate a user without deleting their records
 export const deactivateUser = async (id) => {
-  const userId = Number(id);
-
-  if (!Number.isInteger(userId) || userId <= 0) {
-    throw new Error("Invalid user ID.");
-  }
-
-  try {
-    return await prisma.user.update({
-      where: {
-        id: userId,
-      },
-      data: {
-        isActive: false,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        isActive: true,
-      },
-    });
-  } catch (error) {
-    if (error.code === "P2025") {
-      throw new Error("User not found.");
-    }
-
-    throw error;
-  }
+  return updateUser(id, { isActive: false });
 };

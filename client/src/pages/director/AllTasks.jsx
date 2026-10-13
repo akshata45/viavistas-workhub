@@ -5,10 +5,12 @@ import {
   getTasks,
   getTask,
   createTask,
+  updateTask,
   reviewTask,
   addTaskComment,
 } from "../../services/taskService";
 import { getUsers } from "../../services/userService";
+import TaskFormModal from "../../components/tasks/TaskFormModal";
 
 // --------------------------------------------------
 // LOOKUPS
@@ -35,24 +37,7 @@ const PRIORITY_STYLES = {
   URGENT: "bg-red-100 text-red-700",
 };
 
-const DEFAULT_POINTS = {
-  EASY: 5,
-  MEDIUM: 10,
-  HARD: 20,
-  CRITICAL: 40,
-};
-
 const FILTERS = ["ALL", "ASSIGNED", "IN_PROGRESS", "SUBMITTED", "APPROVED"];
-
-const emptyForm = {
-  title: "",
-  description: "",
-  assignedToId: "",
-  priority: "MEDIUM",
-  difficulty: "MEDIUM",
-  points: "",
-  deadline: "",
-};
 
 // --------------------------------------------------
 // SMALL HELPERS
@@ -109,11 +94,8 @@ function AllTasks() {
 
   const [filter, setFilter] = useState("ALL");
 
-  // Create task popup
-  const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState(emptyForm);
-  const [formError, setFormError] = useState("");
-  const [saving, setSaving] = useState(false);
+  // Create / edit task popup (null = closed)
+  const [taskForm, setTaskForm] = useState(null);
 
   // Task detail popup
   const [selectedId, setSelectedId] = useState(null);
@@ -162,43 +144,31 @@ function AllTasks() {
   };
 
   // --------------------------------------------------
-  // CREATE TASK
+  // CREATE / EDIT TASK
   // --------------------------------------------------
 
-  const handleFormChange = (e) => {
-    const { name, value } = e.target;
-    setForm((previous) => ({ ...previous, [name]: value }));
-  };
-
   const openCreate = () => {
-    setForm(emptyForm);
-    setFormError("");
-    setShowCreate(true);
+    setTaskForm({ mode: "create" });
   };
 
-  const handleCreate = async (e) => {
-    e.preventDefault();
+  const openEdit = () => {
+    setTaskForm({ mode: "edit", task: detail });
+  };
 
-    try {
-      setSaving(true);
-      setFormError("");
+  const handleSaveTask = async (payload) => {
+    if (taskForm.mode === "edit") {
+      await updateTask(taskForm.task.id, payload);
+    } else {
+      await createTask(payload);
+    }
 
-      await createTask({
-        title: form.title,
-        description: form.description,
-        assignedToId: Number(form.assignedToId),
-        priority: form.priority,
-        difficulty: form.difficulty,
-        points: form.points === "" ? undefined : Number(form.points),
-        deadline: form.deadline || null,
-      });
+    const editedId = taskForm.mode === "edit" ? taskForm.task.id : null;
 
-      setShowCreate(false);
-      await loadData();
-    } catch (err) {
-      setFormError(err.message || "Unable to create task.");
-    } finally {
-      setSaving(false);
+    setTaskForm(null);
+    await loadData();
+
+    if (editedId !== null && editedId === selectedId) {
+      await loadDetail(editedId);
     }
   };
 
@@ -274,9 +244,18 @@ function AllTasks() {
       : tasks.filter((task) => task.status === filter);
 
   // Directors can assign to active Employees and Team Leaders
-  const assignableUsers = users.filter(
-    (user) => user.isActive && user.role !== "DIRECTOR"
-  );
+  const assignees = users
+    .filter((user) => user.isActive && user.role !== "DIRECTOR")
+    .map((user) => ({
+      id: user.id,
+      label: `${user.name} (${user.role}${
+        user.team ? ` · ${user.team.name}` : ""
+      })`,
+    }));
+
+  // The Director can edit any task that is not approved or waiting for review
+  const canEditDetail =
+    detail && detail.status !== "APPROVED" && detail.status !== "SUBMITTED";
 
   const filterLabel = (status) =>
     status === "ALL" ? "All" : STATUS_LABELS[status];
@@ -440,157 +419,23 @@ function AllTasks() {
       </div>
 
       {/* ------------------------------------------------ */}
-      {/* CREATE TASK POPUP                                 */}
-      {/* ------------------------------------------------ */}
-      {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4">
-          <div className="my-8 w-full max-w-lg rounded-2xl bg-white p-6">
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-extrabold text-[#111111]">
-                  Create Task
-                </h2>
-                <p className="mt-1 text-sm text-neutral-500">
-                  Assign work to an employee or team leader.
-                </p>
-              </div>
-
-              <button
-                onClick={() => setShowCreate(false)}
-                className="text-xl text-neutral-400 hover:text-black"
-              >
-                ×
-              </button>
-            </div>
-
-            {formError && (
-              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                {formError}
-              </div>
-            )}
-
-            <form onSubmit={handleCreate} className="space-y-4">
-              <input
-                name="title"
-                value={form.title}
-                onChange={handleFormChange}
-                placeholder="Task title"
-                required
-                className="h-12 w-full rounded-xl border border-neutral-200 px-4 text-sm outline-none focus:border-black"
-              />
-
-              <textarea
-                name="description"
-                value={form.description}
-                onChange={handleFormChange}
-                placeholder="Description (optional)"
-                rows={3}
-                className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-sm outline-none focus:border-black"
-              />
-
-              <select
-                name="assignedToId"
-                value={form.assignedToId}
-                onChange={handleFormChange}
-                required
-                className="h-12 w-full rounded-xl border border-neutral-200 px-4 text-sm outline-none focus:border-black"
-              >
-                <option value="">Assign to...</option>
-
-                {assignableUsers.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name} ({user.role}
-                    {user.team ? ` · ${user.team.name}` : ""})
-                  </option>
-                ))}
-              </select>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-neutral-500">
-                    Priority
-                  </label>
-                  <select
-                    name="priority"
-                    value={form.priority}
-                    onChange={handleFormChange}
-                    className="h-12 w-full rounded-xl border border-neutral-200 px-4 text-sm outline-none focus:border-black"
-                  >
-                    <option value="LOW">Low</option>
-                    <option value="MEDIUM">Medium</option>
-                    <option value="HIGH">High</option>
-                    <option value="URGENT">Urgent</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-neutral-500">
-                    Difficulty
-                  </label>
-                  <select
-                    name="difficulty"
-                    value={form.difficulty}
-                    onChange={handleFormChange}
-                    className="h-12 w-full rounded-xl border border-neutral-200 px-4 text-sm outline-none focus:border-black"
-                  >
-                    <option value="EASY">Easy</option>
-                    <option value="MEDIUM">Medium</option>
-                    <option value="HARD">Hard</option>
-                    <option value="CRITICAL">Critical</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-neutral-500">
-                    Points (optional)
-                  </label>
-                  <input
-                    name="points"
-                    type="number"
-                    min="0"
-                    max="500"
-                    value={form.points}
-                    onChange={handleFormChange}
-                    placeholder={`Default: ${DEFAULT_POINTS[form.difficulty]}`}
-                    className="h-12 w-full rounded-xl border border-neutral-200 px-4 text-sm outline-none focus:border-black"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-neutral-500">
-                    Deadline
-                  </label>
-                  <input
-                    name="deadline"
-                    type="date"
-                    value={form.deadline}
-                    onChange={handleFormChange}
-                    className="h-12 w-full rounded-xl border border-neutral-200 px-4 text-sm outline-none focus:border-black"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={saving}
-                className="h-12 w-full rounded-xl bg-[#111111] text-sm font-bold text-white hover:bg-[#242424] disabled:opacity-60"
-              >
-                {saving ? "Creating..." : "Create Task"}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ------------------------------------------------ */}
       {/* TASK DETAIL POPUP                                 */}
       {/* ------------------------------------------------ */}
       {selectedId !== null && (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4">
           <div className="my-8 w-full max-w-2xl rounded-2xl bg-white p-6">
-            <div className="mb-4 flex justify-end">
+            <div className="mb-4 flex items-center justify-between">
+              {canEditDetail ? (
+                <button
+                  onClick={openEdit}
+                  className="rounded-xl border border-neutral-300 px-4 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-100"
+                >
+                  Edit task
+                </button>
+              ) : (
+                <span />
+              )}
+
               <button
                 onClick={closeTask}
                 className="text-xl text-neutral-400 hover:text-black"
@@ -778,6 +623,20 @@ function AllTasks() {
             )}
           </div>
         </div>
+      )}
+
+      {/* ------------------------------------------------ */}
+      {/* CREATE / EDIT TASK POPUP                          */}
+      {/* ------------------------------------------------ */}
+      {taskForm && (
+        <TaskFormModal
+          mode={taskForm.mode}
+          task={taskForm.task}
+          assignees={assignees}
+          canSetPoints
+          onSave={handleSaveTask}
+          onClose={() => setTaskForm(null)}
+        />
       )}
     </div>
   );

@@ -106,7 +106,7 @@ export const editUser = async (req, res) => {
 
     return res.status(400).json({
       success: false,
-      message: "Unable to update user.",
+            message: error.message || "Unable to update user.",
     });
   }
 };
@@ -127,7 +127,7 @@ export const disableUser = async (req, res) => {
 
     return res.status(400).json({
       success: false,
-      message: "Unable to deactivate user.",
+            message: error.message || "Unable to deactivate user.",
     });
   }
 };
