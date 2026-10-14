@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import EmployeeOfMonthCard from "../../components/points/EmployeeOfMonthCard";
+
 function DirectorDashboard() {
   const navigate = useNavigate();
 
@@ -251,21 +253,7 @@ function DirectorDashboard() {
 
           {/* EMPLOYEE OF MONTH */}
 
-          <div className="rounded-2xl bg-[#C3D82D] p-6">
-
-            <p className="text-sm font-medium text-[#111111]/60">
-              Employee of Month
-            </p>
-
-            <h2 className="mt-3 text-2xl font-extrabold text-[#111111]">
-              Coming Soon
-            </h2>
-
-            <p className="mt-3 text-xs font-semibold text-[#111111]/60">
-              Performance system
-            </p>
-
-          </div>
+          <EmployeeOfMonthCard />
 
         </div>
 

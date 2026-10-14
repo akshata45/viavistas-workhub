@@ -11,6 +11,7 @@ import {
 } from "../../services/taskService";
 import { getMyTeam } from "../../services/tlService";
 import TaskFormModal from "../../components/tasks/TaskFormModal";
+import LeaderScoreCard from "../../components/votes/LeaderScoreCard";
 import { getUser, logout } from "../../utils/auth";
 
 // --------------------------------------------------
@@ -355,6 +356,12 @@ function TLDashboard() {
             >
               My own work
             </button>
+                        <button
+              onClick={() => navigate("/leaderboard")}
+              className="rounded-xl border border-neutral-300 bg-white px-5 py-3 text-sm font-bold text-neutral-700 transition hover:bg-neutral-100"
+            >
+              Leaderboard
+            </button>
 
             <button
               onClick={openCreate}
@@ -400,6 +407,8 @@ function TLDashboard() {
           />
         </div>
 
+        {/* My leadership score */}
+        <LeaderScoreCard />
         {/* Tabs */}
         <div className="mb-5 flex flex-wrap gap-2">
           {[

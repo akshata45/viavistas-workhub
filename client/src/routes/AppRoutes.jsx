@@ -8,6 +8,9 @@ import AllTasks from "../pages/director/AllTasks";
 import EmployeeDashboard from "../pages/employee/EmployeeDashboard";
 import TLDashboard from "../pages/tl/TLDashboard";
 import ComingSoon from "../pages/common/ComingSoon";
+import Leaderboard from "../pages/common/Leaderboard";
+import MyPoints from "../pages/common/MyPoints";
+import LeaderScores from "../pages/director/LeaderScores";
 
 import ProtectedRoute from "./ProtectedRoute";
 
@@ -55,6 +58,15 @@ function AppRoutes() {
         }
       />
 
+      <Route
+        path="/director/leaders"
+        element={
+          <ProtectedRoute allowedRoles={["DIRECTOR"]}>
+            <LeaderScores />
+          </ProtectedRoute>
+        }
+      />
+
       {/* Employee and Team Leader: their own assigned work */}
       <Route
         path="/dashboard"
@@ -65,7 +77,6 @@ function AppRoutes() {
         }
       />
 
-      {/* Team Leader: team management */}
       <Route
         path="/tl"
         element={
@@ -75,15 +86,31 @@ function AppRoutes() {
         }
       />
 
-      {/* Not built yet: placeholder instead of a blank screen */}
+      {/* Points: leaderboard for everyone, history for staff */}
+      <Route
+        path="/leaderboard"
+        element={
+          <ProtectedRoute>
+            <Leaderboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/points"
+        element={
+          <ProtectedRoute allowedRoles={["EMPLOYEE", "TL"]}>
+            <MyPoints />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* The Director's Performance card opens the leaderboard */}
       <Route
         path="/director/performance"
         element={
           <ProtectedRoute allowedRoles={["DIRECTOR"]}>
-            <ComingSoon
-              title="Performance"
-              message="Performance tracking will arrive after tasks and points."
-            />
+            <Leaderboard />
           </ProtectedRoute>
         }
       />

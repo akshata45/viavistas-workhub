@@ -7,6 +7,8 @@ import {
   changeTaskStatus,
   addTaskComment,
 } from "../../services/taskService";
+import RateLeaderCard from "../../components/votes/RateLeaderCard";
+import TotalPointsCard from "../../components/points/TotalPointsCard";
 import { getUser, logout } from "../../utils/auth";
 
 // --------------------------------------------------
@@ -256,10 +258,6 @@ function EmployeeDashboard() {
       ? tasks
       : tasks.filter((task) => task.status === filter);
 
-  const pointsEarned = tasks
-    .filter((task) => task.status === "APPROVED")
-    .reduce((total, task) => total + (task.awardedPoints || 0), 0);
-
   const returnedCount = tasks.filter(isReturned).length;
 
   const filterLabel = (status) =>
@@ -290,6 +288,13 @@ function EmployeeDashboard() {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate("/leaderboard")}
+              className="rounded-xl border border-neutral-300 bg-white px-5 py-3 text-sm font-bold text-neutral-700 transition hover:bg-neutral-100"
+            >
+              Leaderboard
+            </button>
+
             {user?.role === "TL" && (
               <button
                 onClick={() => navigate("/tl")}
@@ -320,7 +325,7 @@ function EmployeeDashboard() {
           <StatCard label="In progress" value={countFor("IN_PROGRESS")} />
           <StatCard label="In review" value={countFor("SUBMITTED")} />
           <StatCard label="Approved" value={countFor("APPROVED")} />
-          <StatCard label="Points earned" value={pointsEarned} highlight />
+                    <TotalPointsCard />
         </div>
 
         {returnedCount > 0 && (
@@ -330,7 +335,8 @@ function EmployeeDashboard() {
             see what to fix.
           </div>
         )}
-
+        {/* Rate my Team Leader (employees only) */}
+        <RateLeaderCard />
         {/* Filter tabs */}
         <div className="mb-5 flex flex-wrap gap-2">
           {FILTERS.map((status) => (
