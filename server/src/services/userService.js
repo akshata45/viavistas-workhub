@@ -141,6 +141,7 @@ export const createUser = async ({
         password: hashedPassword,
         role: cleanRole,
         isActive: true,
+        mustChangePassword: true,
         ...(parsedTeamId !== null && {
           teamId: parsedTeamId,
         }),
@@ -265,6 +266,11 @@ export const updateUser = async (
     }
 
     data.password = await bcrypt.hash(cleanPassword, 12);
+
+    // A password set by the Director is temporary: the person must choose
+    // their own, and any older login sessions stop working.
+    data.mustChangePassword = true;
+    data.passwordChangedAt = new Date();
   }
 
   if (role !== undefined) {

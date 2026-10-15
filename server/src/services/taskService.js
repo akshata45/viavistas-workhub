@@ -424,16 +424,33 @@ export const reviewTask = async (user, id, { decision, feedback }) => {
     data.status = "IN_PROGRESS";
   }
 
-  // Only update if it is still SUBMITTED, so two reviewers
-  // clicking at the same time cannot both succeed.
-  const result = await prisma.task.updateMany({
-    where: { id: task.id, status: "SUBMITTED" },
-    data,
-  });
+  // The approval and the points are saved together: either both
+  // happen or neither does. The status check also means two reviewers
+  // clicking at the same time cannot both succeed (or pay out twice).
+  await prisma.$transaction(async (tx) => {
+    const result = await tx.task.updateMany({
+      where: { id: task.id, status: "SUBMITTED" },
+      data,
+    });
 
-  if (result.count === 0) {
-    throw httpError(409, "This task was already reviewed.");
-  }
+    if (result.count === 0) {
+      throw httpError(409, "This task was already reviewed.");
+    }
+
+    if (action === "APPROVE") {
+      await tx.pointTransaction.create({
+        data: {
+          points: task.points,
+          type: "TASK_APPROVAL",
+          reason: `Approved: ${task.title}`,
+          userId: task.assignedToId,
+          teamId: task.teamId,
+          taskId: task.id,
+          awardedById: user.id,
+        },
+      });
+    }
+  });
 
   return loadTask(task.id);
 };

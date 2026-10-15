@@ -173,12 +173,21 @@ function DirectorDashboard() {
             </p>
           </div>
 
-          <button
-            onClick={handleLogout}
-            className="w-fit rounded-xl bg-[#111111] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#242424]"
-          >
-            Logout
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => navigate("/change-password")}
+              className="w-fit rounded-xl border border-neutral-300 bg-white px-5 py-3 text-sm font-semibold text-neutral-700 transition hover:bg-neutral-100"
+            >
+              Change password
+            </button>
+
+            <button
+              onClick={handleLogout}
+              className="w-fit rounded-xl bg-[#111111] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#242424]"
+            >
+              Logout
+            </button>
+          </div>
 
         </div>
 

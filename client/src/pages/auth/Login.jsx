@@ -44,6 +44,11 @@ function Login() {
 
       localStorage.setItem("workhubUser", JSON.stringify(data.user));
 
+      if (data.user.mustChangePassword) {
+        navigate("/change-password");
+        return;
+      }
+
       if (data.user.role === "DIRECTOR") {
         navigate("/director");
       } else if (data.user.role === "TL") {

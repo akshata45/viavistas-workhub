@@ -372,6 +372,13 @@ function TLDashboard() {
             </button>
 
             <button
+              onClick={() => navigate("/change-password")}
+              className="rounded-xl border border-neutral-300 bg-white px-5 py-3 text-sm font-bold text-neutral-700 transition hover:bg-neutral-100"
+            >
+              Change password
+            </button>
+
+            <button
               onClick={handleLogout}
               className="rounded-xl bg-[#111111] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#242424]"
             >

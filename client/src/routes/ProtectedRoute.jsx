@@ -1,8 +1,11 @@
 import { Navigate } from "react-router-dom";
 
+// allowedRoles          which roles may open this page (empty = any logged-in person)
+// allowTemporaryPassword true only for the change-password page
 function ProtectedRoute({
   children,
   allowedRoles = [],
+  allowTemporaryPassword = false,
 }) {
   const token =
     localStorage.getItem("workhubToken");
@@ -35,6 +38,16 @@ function ProtectedRoute({
     return (
       <Navigate
         to="/"
+        replace
+      />
+    );
+  }
+
+  // Someone with a temporary password can only choose a new one
+  if (user.mustChangePassword && !allowTemporaryPassword) {
+    return (
+      <Navigate
+        to="/change-password"
         replace
       />
     );

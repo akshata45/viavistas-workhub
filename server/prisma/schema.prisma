@@ -27,6 +27,12 @@ enum TaskStatus {
   APPROVED
 }
 
+enum PointType {
+  TASK_APPROVAL
+  BONUS
+  ADJUSTMENT
+}
+
 model User {
   id           Int      @id @default(autoincrement())
   name         String
@@ -35,6 +41,10 @@ model User {
   role         String   @default("EMPLOYEE") // DIRECTOR | TL | EMPLOYEE
   profilePhoto String?
   isActive     Boolean  @default(true)
+
+  // Password safety
+  mustChangePassword Boolean   @default(false)
+  passwordChangedAt  DateTime?
 
   // Team this user is a MEMBER of
   teamId       Int?
@@ -48,6 +58,20 @@ model User {
   createdTasks  Task[]        @relation("TaskCreator")
   reviewedTasks Task[]        @relation("TaskReviewer")
   taskComments  TaskComment[]
+
+  // Points ledger
+  pointTransactions PointTransaction[] @relation("PointsEarned")
+  pointsGiven       PointTransaction[] @relation("PointsGiven")
+
+  
+  // Employee of the Month
+  monthWins         EmployeeOfMonth[]  @relation("MonthWinner")
+  winnersConfirmed  EmployeeOfMonth[]  @relation("WinnerConfirmedBy")
+
+  
+  // Ratings of Team Leaders
+  votesCast         LeaderVote[]       @relation("VotesCast")
+  votesReceived     LeaderVote[]       @relation("VotesReceived")
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -65,6 +89,7 @@ model Team {
   teamLeader   User?    @relation("TeamLeader", fields: [teamLeaderId], references: [id])
 
   tasks        Task[]
+  pointTransactions PointTransaction[]
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -106,6 +131,7 @@ model Task {
   completedAt    DateTime?
 
   comments     TaskComment[]
+  pointTransactions PointTransaction[]
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -128,4 +154,82 @@ model TaskComment {
   createdAt DateTime @default(now())
 
   @@index([taskId])
+}
+
+// Every point ever given or taken away. Totals are always calculated
+// from these rows, so there is a full history and nothing is lost.
+model PointTransaction {
+  id        Int       @id @default(autoincrement())
+  points    Int       // positive = earned, negative = taken away
+  type      PointType
+  reason    String
+
+  // Who received the points
+  userId    Int
+  user      User      @relation("PointsEarned", fields: [userId], references: [id])
+
+  // The team at that moment (used for team competition)
+  teamId    Int?
+  team      Team?     @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  // The task these points came from (task approvals only)
+  taskId    Int?
+  task      Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  // Who awarded them
+  awardedById Int?
+  awardedBy   User?   @relation("PointsGiven", fields: [awardedById], references: [id])
+
+  createdAt DateTime  @default(now())
+
+  // A task can only ever pay out once
+  @@unique([taskId, type])
+  @@index([userId, createdAt])
+  @@index([teamId, createdAt])
+}
+
+// One winner per month, chosen by the Director.
+// The points and team are saved as they were when the winner was chosen.
+model EmployeeOfMonth {
+  id        Int      @id @default(autoincrement())
+
+  month     String   @unique // for example "2026-10"
+
+  userId    Int
+  user      User     @relation("MonthWinner", fields: [userId], references: [id])
+
+  points    Int
+  teamName  String?
+  note      String?
+
+  confirmedById Int
+  confirmedBy   User @relation("WinnerConfirmedBy", fields: [confirmedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// An employee's 1 to 5 star rating of their Team Leader for one month.
+// Each employee has one vote per month; voting again replaces it.
+model LeaderVote {
+  id        Int      @id @default(autoincrement())
+
+  month     String   // for example "2026-10"
+  rating    Int      // 1 to 5
+  comment   String?
+
+  voterId   Int
+  voter     User     @relation("VotesCast", fields: [voterId], references: [id])
+
+  tlId      Int
+  tl        User     @relation("VotesReceived", fields: [tlId], references: [id])
+
+  // The team at that moment
+  teamId    Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([voterId, month])
+  @@index([tlId, month])
 }

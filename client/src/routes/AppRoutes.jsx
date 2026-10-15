@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router-dom";
 
 import Login from "../pages/auth/Login";
+import ChangePassword from "../pages/auth/ChangePassword";
 import DirectorDashboard from "../pages/director/DirectorDashboard";
 import AllEmployees from "../pages/director/AllEmployees";
 import Teams from "../pages/director/Teams";
@@ -20,6 +21,16 @@ function AppRoutes() {
       {/* Login */}
       <Route path="/" element={<Login />} />
       <Route path="/login" element={<Login />} />
+
+      {/* Any logged-in person, including someone with a temporary password */}
+      <Route
+        path="/change-password"
+        element={
+          <ProtectedRoute allowTemporaryPassword>
+            <ChangePassword />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Director Dashboard */}
       <Route
